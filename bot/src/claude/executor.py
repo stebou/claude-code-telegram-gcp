@@ -82,16 +82,9 @@ class ClaudeExecutor:
         Returns:
             List of command arguments
         """
-        # Base command
-        cmd = ["claude"]
-
-        # Add allowed tools restriction
-        if self.allowed_tools:
-            tools_arg = ",".join(self.allowed_tools)
-            cmd.extend(["--tools", tools_arg])
-
-        # Add message
-        cmd.append(message)
+        # Base command - claude accepts message directly
+        # Note: Tools are configured in Claude's config file, not via CLI args
+        cmd = ["claude", message]
 
         return cmd
 
