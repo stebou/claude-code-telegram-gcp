@@ -60,7 +60,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Send "thinking" message
         thinking_msg = await update.message.reply_text("🤔 Processing...")
-        last_update_time = asyncio.get_event_loop().time()
+
+        # Initialize last_update_time for THIS message (must be inside try block)
+        last_update_time = 0  # Start at 0 to allow immediate first update
 
         # Streaming callback to show real-time progress
         async def stream_callback(update_obj: StreamUpdate):
