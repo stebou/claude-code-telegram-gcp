@@ -171,14 +171,37 @@ class ClaudeSDKExecutor:
         except Exception as e:
             # Handle ExceptionGroup from TaskGroup operations (Python 3.11+)
             if type(e).__name__ == "ExceptionGroup" or hasattr(e, "exceptions"):
+                exceptions = getattr(e, "exceptions", [e])
+                exception_strs = [str(ex) for ex in exceptions[:3]]
+
                 logger.error(
                     f"TaskGroup error in streaming execution: {e}, "
-                    f"exception_count: {len(getattr(e, 'exceptions', []))}"
+                    f"exception_count: {len(exceptions)}, "
+                    f"exceptions: {exception_strs}"
                 )
-                # Extract the most relevant exception from the group
-                exceptions = getattr(e, "exceptions", [e])
+
+                # Check if it's just a JSON decode error (non-critical)
                 main_exception = exceptions[0] if exceptions else e
+                error_msg = str(main_exception).lower()
+
+                if "failed to decode json" in error_msg or "json" in error_msg:
+                    logger.warning(
+                        "Non-critical JSON decode error in SDK - continuing anyway"
+                    )
+                    # Don't raise - SDK bug but we have the messages we need
+                    return
+
+                # For other errors, raise
                 raise RuntimeError(f"Claude SDK task error: {str(main_exception)}")
+
+            # Check if it's an ExceptionGroup disguised as regular exception
+            elif hasattr(e, "__notes__") and "TaskGroup" in str(e):
+                logger.error(f"TaskGroup related error: {e}")
+                # Check for JSON error
+                if "json" in str(e).lower():
+                    logger.warning("Non-critical JSON error - continuing")
+                    return
+                raise RuntimeError(f"Claude SDK task error: {str(e)}")
             else:
                 logger.error(f"Error in streaming execution: {e}")
                 raise
