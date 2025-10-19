@@ -169,8 +169,19 @@ class ClaudeSDKExecutor:
                         # Continue processing even if callback fails
 
         except Exception as e:
-            logger.error(f"Error in streaming execution: {e}")
-            raise
+            # Handle ExceptionGroup from TaskGroup operations (Python 3.11+)
+            if type(e).__name__ == "ExceptionGroup" or hasattr(e, "exceptions"):
+                logger.error(
+                    f"TaskGroup error in streaming execution: {e}, "
+                    f"exception_count: {len(getattr(e, 'exceptions', []))}"
+                )
+                # Extract the most relevant exception from the group
+                exceptions = getattr(e, "exceptions", [e])
+                main_exception = exceptions[0] if exceptions else e
+                raise RuntimeError(f"Claude SDK task error: {str(main_exception)}")
+            else:
+                logger.error(f"Error in streaming execution: {e}")
+                raise
 
     async def _handle_stream_message(
         self, message: Message, stream_callback: Callable[[StreamUpdate], None]
