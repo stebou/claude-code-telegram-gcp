@@ -167,12 +167,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Ignore rate limit errors on streaming updates
                     logger.debug(f"Failed to update progress: {e}")
 
+        # Get existing conversation history from context
+        conversation_history = context.user_data.get("conversation_history", [])
+
         # Execute Claude CLI with streaming
-        response = await claude_executor.execute(
+        response, updated_history = await claude_executor.execute(
             message_text,
             user_id,
+            conversation_history=conversation_history,
             stream_callback=stream_callback
         )
+
+        # Store updated conversation history
+        context.user_data["conversation_history"] = updated_history
 
         # Check if response contains an action that needs confirmation
         needs_confirmation = detect_action_in_response(response)
@@ -288,9 +295,19 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             await query.message.reply_text("💰 Budget limit exceeded.")
             return
 
+        # Get existing conversation history from context
+        conversation_history = context.user_data.get("conversation_history", [])
+
         # Execute the confirmed action
         thinking_msg = await query.message.reply_text("🔄 Executing action...")
-        response = await claude_executor.execute(confirmation_message, user_id)
+        response, updated_history = await claude_executor.execute(
+            confirmation_message,
+            user_id,
+            conversation_history=conversation_history
+        )
+
+        # Store updated conversation history
+        context.user_data["conversation_history"] = updated_history
 
         # Send final response
         if len(response) > 4096:

@@ -74,23 +74,39 @@ class ClaudeSDKExecutor:
         self,
         message: str,
         user_id: int,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
         stream_callback: Optional[Callable[[StreamUpdate], None]] = None,
-    ) -> str:
+    ) -> tuple[str, List[Dict[str, str]]]:
         """
         Execute a Claude Code SDK command.
 
         Args:
             message: User message to send to Claude
             user_id: Telegram user ID
+            conversation_history: Previous conversation messages (list of {role, content})
             stream_callback: Optional callback for streaming updates
 
         Returns:
-            Claude's response as a string
+            Tuple of (response, updated_conversation_history)
         """
         try:
             logger.info(f"Executing Claude SDK for user {user_id}")
 
-            # Build Claude Code options with system prompt
+            # Initialize or update conversation history
+            if conversation_history is None:
+                conversation_history = []
+
+            # Build conversation context from history
+            conversation_context = ""
+            if conversation_history:
+                conversation_context = "\n\nPREVIOUS CONVERSATION:\n"
+                for msg in conversation_history[-10:]:  # Keep last 10 messages max
+                    role = msg.get("role", "unknown")
+                    content = msg.get("content", "")
+                    conversation_context += f"{role.upper()}: {content}\n"
+                conversation_context += "\nCURRENT USER MESSAGE:\n"
+
+            # Build Claude Code options with system prompt including history
             system_prompt = (
                 "IMPORTANT: Before using Write, Edit, or Bash tools to modify files or execute commands, "
                 "you MUST first ask the user for confirmation using clear language like:\n"
@@ -98,6 +114,7 @@ class ClaudeSDKExecutor:
                 "- 'May I modify this file?'\n"
                 "- 'Do you want me to run this command?'\n\n"
                 "Always wait for explicit user approval (yes/no) before proceeding with any modifications."
+                f"{conversation_context}"
             )
 
             options = ClaudeCodeOptions(
@@ -132,7 +149,11 @@ class ClaudeSDKExecutor:
                 f"{len(tools_used)} tools used, {duration_ms}ms)"
             )
 
-            return content
+            # Update conversation history
+            conversation_history.append({"role": "user", "content": message})
+            conversation_history.append({"role": "assistant", "content": content})
+
+            return content, conversation_history
 
         except asyncio.TimeoutError:
             logger.error(f"Claude SDK command timed out after {self.timeout} seconds")
