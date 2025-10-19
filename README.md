@@ -715,9 +715,14 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- [RichardAtCT/claude-code-telegram](https://github.com/RichardAtCT/claude-code-telegram) - Python Telegram bot implementation
-- [Anthropic Claude](https://claude.ai) - AI assistant
-- [Google Cloud Platform](https://cloud.google.com) - Infrastructure
+This project is inspired by and builds upon the excellent work of:
+
+- **[RichardAtCT/claude-code-telegram](https://github.com/RichardAtCT/claude-code-telegram)** - Original Python Telegram bot implementation for Claude Code CLI. This repository adapts and extends Richard's architecture with a production-ready GCP deployment solution, complete bot source code, and comprehensive documentation.
+
+Special thanks to:
+- [Anthropic Claude](https://claude.ai) - AI assistant powering the bot
+- [Google Cloud Platform](https://cloud.google.com) - Infrastructure hosting
+- The open-source community for Python, Poetry, and Telegram Bot libraries
 
 ## 📞 Support
 
