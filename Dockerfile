@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=$POETRY_CACHE_DIR \
 FROM node:20-bookworm-slim AS claude-installer
 
 # Install Claude Code CLI globally
-RUN npm install -g @anthropic-ai/claude@latest
+RUN npm install -g @anthropic-ai/claude-code@latest
 
 # Verify installation
 RUN claude --version
@@ -53,7 +53,7 @@ RUN groupadd -r appuser && useradd -r -g appuser -m appuser
 
 # Install Claude CLI from builder stage
 COPY --from=claude-installer /usr/local/lib/node_modules/@anthropic-ai /usr/local/lib/node_modules/@anthropic-ai
-RUN npm link @anthropic-ai/claude
+RUN npm link @anthropic-ai/claude-code
 
 WORKDIR /app
 
