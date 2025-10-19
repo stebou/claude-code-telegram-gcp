@@ -4,6 +4,7 @@ import io
 import logging
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.constants import ChatAction
 
 from src.claude.cli_executor import ClaudeProcessManager, StreamUpdate
 from src.security.validator import security_validator
@@ -15,6 +16,22 @@ logger = logging.getLogger(__name__)
 claude_executor = ClaudeProcessManager(settings)
 
 # Note: No confirmation system - Claude executes actions directly (like richardatct)
+
+
+async def _send_typing_periodically(context: ContextTypes.DEFAULT_TYPE, update: Update):
+    """Send typing indicator every 4 seconds to show bot is working."""
+    try:
+        while True:
+            await context.bot.send_chat_action(
+                chat_id=update.effective_chat.id,
+                action=ChatAction.TYPING
+            )
+            await asyncio.sleep(4)  # Typing lasts 5s, renew every 4s
+    except asyncio.CancelledError:
+        # Task was cancelled, stop gracefully
+        pass
+    except Exception as e:
+        logger.debug(f"Typing indicator error: {e}")
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -58,6 +75,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Budget check removed (CLI doesn't have built-in budget tracking)
 
     try:
+        # Start typing indicator (shows "..." animation in Telegram)
+        typing_task = asyncio.create_task(_send_typing_periodically(context, update))
+
         # Send "thinking" message
         thinking_msg = await update.message.reply_text("🤔 Processing...")
 
@@ -140,6 +160,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Get response text
         response = response_obj.content
 
+        # Stop typing indicator
+        typing_task.cancel()
+        try:
+            await typing_task
+        except asyncio.CancelledError:
+            pass
+
         # Send response (split if too long) - no confirmation needed
         if len(response) > 4096:
             chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
@@ -150,6 +177,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await thinking_msg.edit_text(response)
 
     except TimeoutError:
+        # Stop typing on timeout
+        if 'typing_task' in locals():
+            typing_task.cancel()
         await update.message.reply_text(
             "⏱️ Request timed out. Please try a simpler request."
         )
