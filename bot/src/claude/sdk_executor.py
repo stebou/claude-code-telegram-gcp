@@ -195,45 +195,19 @@ class ClaudeSDKExecutor:
                         # Continue processing even if callback fails
 
         except Exception as e:
-            # Log messages collected before error
-            logger.info(f"Messages collected before error: {len(messages)}")
-
-            # Handle ExceptionGroup from TaskGroup operations (Python 3.11+)
+            # Handle both ExceptionGroups and regular exceptions
             if type(e).__name__ == "ExceptionGroup" or hasattr(e, "exceptions"):
-                exceptions = getattr(e, "exceptions", [e])
-                exception_strs = [str(ex) for ex in exceptions[:3]]
-
                 logger.error(
                     f"TaskGroup error in streaming execution: {e}, "
-                    f"exception_count: {len(exceptions)}, "
-                    f"exceptions: {exception_strs}"
+                    f"error_type: {type(e).__name__}"
                 )
-
-                # Check if it's just a JSON decode error (non-critical)
-                main_exception = exceptions[0] if exceptions else e
-                error_msg = str(main_exception).lower()
-
-                if "failed to decode json" in error_msg or "json" in error_msg:
-                    logger.warning(
-                        f"Non-critical JSON decode error in SDK - continuing with {len(messages)} messages"
-                    )
-                    # Don't raise - SDK bug but we have the messages we need
-                    return
-
-                # For other errors, raise
-                raise RuntimeError(f"Claude SDK task error: {str(main_exception)}")
-
-            # Check if it's an ExceptionGroup disguised as regular exception
-            elif hasattr(e, "__notes__") and "TaskGroup" in str(e):
-                logger.error(f"TaskGroup related error: {e}")
-                # Check for JSON error
-                if "json" in str(e).lower():
-                    logger.warning(f"Non-critical JSON error - continuing with {len(messages)} messages")
-                    return
-                raise RuntimeError(f"Claude SDK task error: {str(e)}")
             else:
-                logger.error(f"Error in streaming execution: {e}")
-                raise
+                logger.error(
+                    f"Error in streaming execution: {e}, "
+                    f"error_type: {type(e).__name__}"
+                )
+            # Re-raise to be handled by the outer try-catch
+            raise
 
     async def _handle_stream_message(
         self, message: Message, stream_callback: Callable[[StreamUpdate], None]
