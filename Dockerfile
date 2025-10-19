@@ -66,8 +66,9 @@ RUN mkdir -p \
 # Switch to non-root user
 USER appuser
 
-# Add virtualenv to PATH
+# Add virtualenv to PATH and fix Python imports
 ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/bot" \
     PYTHONUNBUFFERED=1 \
     HOME=/home/appuser
 

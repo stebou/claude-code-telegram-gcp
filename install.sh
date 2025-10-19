@@ -290,45 +290,66 @@ log_step "🔑 Claude CLI Authentication"
 echo ""
 log_warn "You need to authenticate with your Claude account"
 echo ""
-echo "In a moment, you will:"
-echo "  1. See an authentication URL"
-echo "  2. Visit that URL in your browser"
-echo "  3. Login with your Claude account"
-echo "  4. Authorize the CLI"
+echo "We'll open a tmux session for authentication."
+echo "This prevents terminal clearing from interrupting the installation."
 echo ""
-read -p "Press ENTER to start authentication..."
+echo "Steps:"
+echo "  1. A tmux window will open automatically"
+echo "  2. Follow the authentication URL in your browser"
+echo "  3. Complete the login"
+echo "  4. When done, press Ctrl+D or type 'exit' to close tmux"
+echo "  5. Installation will continue automatically"
+echo ""
+read -p "Press ENTER to start authentication in tmux..."
 
-# Run interactive Claude auth
-# Note: claude auth login may clear the terminal, so we handle that gracefully
+# Run Claude auth in tmux
+# This way when Claude CLI clears the terminal, it doesn't affect the script
 AUTH_RESULT=0
-run_docker run -it --rm \
-  -v telegram-bot_claude-auth:/home/appuser/.claude \
-  telegram-bot:latest \
-  bash -c "
-    echo '🔐 Starting Claude CLI authentication...'
-    echo ''
-    claude auth login
-    AUTH_CODE=\$?
+tmux new-session \
+  "$(which bash) -c '
+    echo \"🔐 Starting Claude CLI authentication...\"
+    echo \"\"
 
-    echo ''
-    echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-
-    if [ \$AUTH_CODE -eq 0 ]; then
-      echo '✅ Authentication successful!'
-      echo ''
-      echo 'Verifying authentication status...'
-      claude auth status
-      EXIT_CODE=\$?
-      echo ''
-      echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-      exit \$EXIT_CODE
+    # Use the same docker wrapper as the rest of the script
+    if [ \"$DOCKER_JUST_INSTALLED\" = true ]; then
+      DOCKER_CMD=\"sudo docker\"
     else
-      echo '❌ Authentication failed'
-      echo ''
-      echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-      exit 1
+      DOCKER_CMD=\"docker\"
     fi
-  " || AUTH_RESULT=$?
+
+    \$DOCKER_CMD run -it --rm \
+      -v telegram-bot_claude-auth:/home/appuser/.claude \
+      telegram-bot:latest \
+      bash -c \"
+        claude auth login
+        AUTH_CODE=\\\$?
+
+        echo \\\"\\\"
+        echo \\\"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\\"
+
+        if [ \\\$AUTH_CODE -eq 0 ]; then
+          echo \\\"✅ Authentication successful!\\\"
+          echo \\\"\\\"
+          claude auth status
+          echo \\\"\\\"
+          echo \\\"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\\"
+          echo \\\"\\\"
+          echo \\\"✅ You can now close this window (Ctrl+D or type exit)\\\"
+          echo \\\"The installation will continue automatically.\\\"
+          read -p \\\"Press ENTER to continue...\\\"
+          exit 0
+        else
+          echo \\\"❌ Authentication failed\\\"
+          echo \\\"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\\"
+          echo \\\"\\\"
+          echo \\\"Press ENTER to close...\\\"
+          read
+          exit 1
+        fi
+      \"
+
+    exit \$?
+  '" || AUTH_RESULT=$?
 
 # Check authentication result
 if [ $AUTH_RESULT -ne 0 ]; then
@@ -337,7 +358,7 @@ if [ $AUTH_RESULT -ne 0 ]; then
   exit 1
 fi
 
-# Restore terminal and continue
+# Verify authentication worked
 echo ""
 log_info "✅ Claude authenticated successfully"
 echo ""
