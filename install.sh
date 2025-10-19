@@ -131,8 +131,12 @@ echo ""
 # ============================================================================
 log_step "🐳 Checking Docker..."
 
+# Flag to track if we just installed Docker (need sudo for commands)
+DOCKER_JUST_INSTALLED=false
+
 if ! command -v docker &> /dev/null; then
   log_warn "Docker not installed - Installing..."
+  DOCKER_JUST_INSTALLED=true
 
   # Detect OS
   if [ -f /etc/os-release ]; then
@@ -164,7 +168,7 @@ if ! command -v docker &> /dev/null; then
 
       # Add current user to docker group
       sudo usermod -aG docker $USER
-      log_warn "⚠️  You've been added to docker group - You may need to re-login"
+      log_info "✅ User added to docker group (will use sudo for this session)"
       ;;
 
     centos|rhel|fedora)
@@ -175,6 +179,7 @@ if ! command -v docker &> /dev/null; then
       sudo systemctl start docker
       sudo systemctl enable docker
       sudo usermod -aG docker $USER
+      log_info "✅ User added to docker group (will use sudo for this session)"
       ;;
 
     *)
@@ -194,6 +199,17 @@ if ! sudo systemctl is-active --quiet docker 2>/dev/null; then
   log_info "Starting Docker service..."
   sudo systemctl start docker || true
 fi
+
+# ============================================================================
+# Helper function to run docker commands with correct permissions
+# ============================================================================
+run_docker() {
+  if [ "$DOCKER_JUST_INSTALLED" = true ]; then
+    sudo docker "$@"
+  else
+    docker "$@"
+  fi
+}
 
 # ============================================================================
 # Clone Repository
@@ -230,7 +246,7 @@ log_info "✅ Code downloaded to $WORK_DIR"
 # ============================================================================
 log_step "🔨 Building Docker image (this may take 3-5 minutes)..."
 
-docker build -t telegram-bot:latest -f Dockerfile . 2>&1 | grep -E "^Step|^Successfully|ERROR" || true
+run_docker build -t telegram-bot:latest -f Dockerfile . 2>&1 | grep -E "^Step|^Successfully|ERROR" || true
 
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
   log_error "Docker build failed"
@@ -265,7 +281,7 @@ echo ""
 read -p "Press ENTER to start authentication..."
 
 # Run interactive Claude auth
-docker run -it --rm \
+run_docker run -it --rm \
   -v telegram-bot_claude-auth:/home/appuser/.claude \
   telegram-bot:latest \
   bash -c "
@@ -298,11 +314,11 @@ log_info "✅ Claude authenticated"
 log_step "🚀 Starting bot..."
 
 # Stop existing container
-docker stop telegram-bot 2>/dev/null || true
-docker rm telegram-bot 2>/dev/null || true
+run_docker stop telegram-bot 2>/dev/null || true
+run_docker rm telegram-bot 2>/dev/null || true
 
 # Start new container
-docker run -d \
+run_docker run -d \
   --name telegram-bot \
   --restart unless-stopped \
   -e TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \
@@ -322,7 +338,7 @@ ELAPSED=0
 echo -n "Checking: "
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
-  HEALTH=$(docker inspect --format='{{.State.Health.Status}}' telegram-bot 2>/dev/null || echo "starting")
+  HEALTH=$(run_docker inspect --format='{{.State.Health.Status}}' telegram-bot 2>/dev/null || echo "starting")
 
   if [ "$HEALTH" = "healthy" ]; then
     echo ""
@@ -331,7 +347,7 @@ while [ $ELAPSED -lt $TIMEOUT ]; do
   elif [ "$HEALTH" = "unhealthy" ]; then
     echo ""
     log_error "Bot health check failed!"
-    docker logs telegram-bot --tail=50
+    run_docker logs telegram-bot --tail=50
     exit 1
   fi
 
@@ -396,4 +412,4 @@ EOF
 
 # Show recent logs
 log_info "📋 Recent logs:"
-docker logs telegram-bot --tail=20
+run_docker logs telegram-bot --tail=20
