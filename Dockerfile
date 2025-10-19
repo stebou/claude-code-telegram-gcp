@@ -24,18 +24,7 @@ RUN --mount=type=cache,target=$POETRY_CACHE_DIR \
     poetry install --no-root --only main
 
 # ============================================================================
-# Stage 2: Claude CLI Installer
-# ============================================================================
-FROM node:20-bookworm-slim AS claude-installer
-
-# Install Claude Code CLI globally
-RUN npm install -g @anthropic-ai/claude-code@latest
-
-# Verify installation
-RUN claude --version
-
-# ============================================================================
-# Stage 3: Runtime - Production image
+# Stage 2: Runtime - Production image
 # ============================================================================
 FROM python:3.11-slim-bookworm AS runtime
 
@@ -51,9 +40,8 @@ RUN apt-get update && apt-get install -y \
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser -m appuser
 
-# Install Claude CLI from builder stage
-COPY --from=claude-installer /usr/local/lib/node_modules/@anthropic-ai /usr/local/lib/node_modules/@anthropic-ai
-RUN npm link @anthropic-ai/claude-code
+# Install Claude CLI globally
+RUN npm install -g @anthropic-ai/claude-code@latest
 
 WORKDIR /app
 

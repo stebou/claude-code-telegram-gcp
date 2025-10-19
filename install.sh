@@ -246,10 +246,9 @@ log_info "✅ Code downloaded to $WORK_DIR"
 # ============================================================================
 log_step "🔨 Building Docker image (this may take 3-5 minutes)..."
 echo ""
-log_info "You will see the full build output below (3 stages):"
+log_info "You will see the full build output below (2 stages):"
 echo "   Stage 1: Python dependencies (Poetry)"
-echo "   Stage 2: Claude CLI installation (npm)"
-echo "   Stage 3: Final runtime image"
+echo "   Stage 2: Runtime image (Node.js + Claude CLI + Python app)"
 echo ""
 
 # Show full build output so user can see progress
