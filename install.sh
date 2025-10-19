@@ -11,6 +11,20 @@
 
 set -e
 
+# ============================================================================
+# Terminal Compatibility Fix
+# ============================================================================
+# Fixes "unknown terminal type" errors (xterm-ghostty, xterm-kitty, etc.)
+# This ensures the script works when run via: curl | bash
+
+# Set TERM to a universally supported value if it's empty or unknown
+if [ -z "$TERM" ]; then
+    export TERM="xterm"
+elif ! tput longname >/dev/null 2>&1; then
+    # TERM is set but not recognized - fall back to xterm
+    export TERM="xterm"
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,7 +40,9 @@ log_step() { echo -e "${BLUE}━━━${NC} $1"; }
 # ============================================================================
 # Banner
 # ============================================================================
-clear
+# Safe clear with fallback for unknown terminal types
+clear 2>/dev/null || printf '\033[2J\033[H'
+
 cat << "EOF"
   ______ _                 _        ______        _
  / _____) |               | |      (____  \      | |
