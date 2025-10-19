@@ -9,10 +9,49 @@ This architecture solves common pain points with AI assistants on Telegram:
 - ✅ **Permanent availability** - VM runs 24/7 (no cold starts)
 - ✅ **Low cost** - $12.23/month with GCP e2-small
 - ✅ **Direct Claude integration** - No third-party AI services required
-- ✅ **Git workflow** - Automatic commits and push to your repository
+- ✅ **Full Claude Code CLI** - Access to ALL tools (Read, Write, Edit, Bash, Git, WebSearch, TodoWrite, etc.)
+- ✅ **Git workflow** - Bot can commit and push changes directly to GitHub
+- ✅ **Complete code management** - Write, edit, test, commit, push - all from Telegram
 - ✅ **Session persistence** - Uses tmux to survive SSH disconnects
 - ✅ **VSCode remote access** - Full IDE support for VM files
 - ✅ **Secure** - Sandboxed execution, rate limiting, input validation
+
+## 💡 What Makes This Unique?
+
+Unlike other Telegram bot solutions, this gives you **the full power of Claude Code CLI** directly from Telegram:
+
+**Code Management via Telegram:**
+```
+You: "Add a new feature to handle user authentication"
+Bot: *uses Read tool to analyze codebase*
+Bot: *uses Write tool to create auth.py*
+Bot: *uses Edit tool to update main.py*
+Bot: *uses Bash tool to run tests*
+Bot: *uses git commands to commit changes*
+Bot: *pushes to GitHub automatically*
+```
+
+**Available Tools:**
+- 📖 **Read** - Read any file in your project
+- ✍️ **Write** - Create new files
+- ✏️ **Edit** - Modify existing code
+- 🔧 **Bash** - Run shell commands, tests, builds
+- 🔍 **Glob** - Find files by pattern
+- 🔎 **Grep** - Search code content
+- 🌐 **WebSearch** - Search the web for documentation
+- 📋 **TodoWrite** - Manage task lists
+- 🎯 **Task** - Launch complex multi-step operations
+- 💬 **AskUserQuestion** - Interactive clarifications
+- ⚡ **Skill** - Execute custom skills
+- 🔨 **SlashCommand** - Run custom commands
+
+**Git Integration:**
+The bot has full access to Git operations, so you can:
+- Commit changes with descriptive messages
+- Push to GitHub/GitLab automatically
+- Create branches
+- View git status and diffs
+- Manage your entire repository from Telegram
 
 ## 🏗️ Architecture
 
@@ -452,20 +491,152 @@ CLAUDE_ALLOWED_TOOLS=["Read","Write","Edit"]
 
 ## 📚 Advanced Usage
 
-### Git Workflow
+### Complete Development Workflow via Telegram
 
-The bot can commit and push changes:
+The bot gives you **full Claude Code CLI capabilities** from Telegram. Here are real-world examples:
+
+#### Example 1: Feature Development with Git Push
 
 ```
-User: "Add a README.md file explaining the project"
-Bot: *creates README.md using Write tool*
-Bot: *commits with message: "docs: Add project README"*
-Bot: *pushes to GitHub*
+You: "Add a new user authentication feature with JWT tokens"
+
+Bot: 📖 Reading current auth implementation...
+Bot: ✍️ Creating auth/jwt_handler.py...
+Bot: ✏️ Updating main.py to integrate JWT middleware...
+Bot: ✏️ Adding requirements: PyJWT==2.8.0...
+Bot: 🔧 Running tests: pytest tests/test_auth.py -v
+Bot: ✅ All tests pass!
+Bot: 🔧 git add auth/jwt_handler.py main.py requirements.txt
+Bot: 🔧 git commit -m "feat: Add JWT authentication middleware"
+Bot: 🔧 git push origin main
+Bot: ✅ Pushed to GitHub successfully!
 ```
 
-**Prerequisites**:
-- Git configured on VM: `git config --global user.name "Bot Name"`
-- SSH keys or PAT for authentication
+#### Example 2: Bug Fix with Automated Testing
+
+```
+You: "Fix the memory leak in the data processing pipeline"
+
+Bot: 📖 Reading backend/pipeline.py...
+Bot: 🔍 Found issue: Connection pool not properly closed
+Bot: ✏️ Editing backend/pipeline.py (line 45-52)...
+Bot: 🔧 Running linter: flake8 backend/
+Bot: 🔧 Running tests: pytest tests/test_pipeline.py
+Bot: ✅ Tests pass, memory usage reduced by 40%
+Bot: 🔧 git commit -m "fix: Close connection pool to prevent memory leak"
+Bot: 🔧 git push
+Bot: ✅ Changes pushed to GitHub
+```
+
+#### Example 3: Documentation & Deployment
+
+```
+You: "Update the README and deploy to production"
+
+Bot: ✏️ Updating README.md with latest API changes...
+Bot: ✏️ Adding deployment section...
+Bot: 🔧 Running docs build: mkdocs build
+Bot: 🔧 git commit -m "docs: Update README with API v2 and deployment guide"
+Bot: 🔧 git push
+Bot: 🔧 bash scripts/deploy.sh
+Bot: ✅ Deployed to production successfully!
+```
+
+#### Example 4: Code Review & Refactoring
+
+```
+You: "Review the codebase for optimization opportunities"
+
+Bot: 🔍 Analyzing all Python files...
+Bot: 📋 Found 3 optimization opportunities:
+     1. Redundant database queries in user_service.py
+     2. Inefficient list comprehension in utils.py
+     3. Missing cache for expensive API calls
+
+You: "Fix all three"
+
+Bot: ✏️ Refactoring user_service.py (batch queries)...
+Bot: ✏️ Optimizing utils.py list comprehension...
+Bot: ✍️ Adding cache decorator to api_client.py...
+Bot: 🔧 Running performance benchmarks...
+Bot: ✅ Performance improved by 65%!
+Bot: 🔧 git commit -m "perf: Optimize database queries and add API caching"
+Bot: 🔧 git push
+```
+
+#### Example 5: Multi-File Feature with Web Research
+
+```
+You: "Implement rate limiting using Redis, research best practices first"
+
+Bot: 🌐 WebSearch: "Redis rate limiting patterns 2024"
+Bot: 📖 Found: Token bucket algorithm recommended
+Bot: ✍️ Creating middleware/rate_limiter.py...
+Bot: ✍️ Creating config/redis_config.py...
+Bot: ✏️ Updating main.py to apply rate limiter...
+Bot: ✏️ Adding redis==5.0.0 to requirements.txt...
+Bot: ✍️ Creating tests/test_rate_limiter.py...
+Bot: 🔧 Running tests: pytest tests/test_rate_limiter.py -v
+Bot: ✅ All tests pass!
+Bot: 🔧 git add middleware/ config/ main.py requirements.txt tests/
+Bot: 🔧 git commit -m "feat: Add Redis-based rate limiting with token bucket"
+Bot: 🔧 git push
+Bot: ✅ Feature complete and deployed!
+```
+
+### Available Claude Code Tools
+
+**File Operations:**
+- 📖 **Read** - `Bot: *reads entire file or specific lines*`
+- ✍️ **Write** - `Bot: *creates new file with content*`
+- ✏️ **Edit** - `Bot: *modifies existing file, shows diff*`
+
+**Code Search:**
+- 🔍 **Glob** - `Bot: *finds all *.py files matching pattern*`
+- 🔎 **Grep** - `Bot: *searches for function definitions*`
+
+**Execution:**
+- 🔧 **Bash** - `Bot: *runs tests, linters, git commands*`
+- 🎯 **Task** - `Bot: *launches complex multi-step operations*`
+
+**Intelligence:**
+- 🌐 **WebSearch** - `Bot: *searches for latest documentation*`
+- 💬 **AskUserQuestion** - `Bot: "Which library do you prefer for validation?"`
+
+**Organization:**
+- 📋 **TodoWrite** - `Bot: *creates task list for multi-day projects*`
+- ⚡ **Skill** - `Bot: *executes custom automation scripts*`
+- 🔨 **SlashCommand** - `Bot: *runs project-specific commands*`
+
+### Git Integration Details
+
+**Automatic Commit & Push:**
+The bot can autonomously manage your Git workflow:
+
+```bash
+# Bot executes automatically after code changes:
+git add modified_files
+git commit -m "descriptive message following conventional commits"
+git push origin main
+```
+
+**Prerequisites:**
+- Git configured: `git config --global user.name "Bot Name"`
+- SSH keys or Personal Access Token for GitHub/GitLab
+
+**Branch Management:**
+```
+You: "Create a new feature branch and switch to it"
+Bot: 🔧 git checkout -b feature/user-dashboard
+Bot: ✅ Switched to new branch
+```
+
+**View Changes:**
+```
+You: "Show me what changed in the last commit"
+Bot: 🔧 git show HEAD
+Bot: [displays diff with syntax highlighting]
+```
 
 ### Custom Tools
 
