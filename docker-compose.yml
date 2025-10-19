@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: telegram-bot:latest
+    container_name: telegram-bot
+
+    # Restart policy for high availability
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+        reservations:
+          memory: 512M
+
+    # Volumes for persistent data
+    volumes:
+      # Claude CLI authentication (persists across restarts)
+      - claude-auth:/home/appuser/.claude
+
+      # Bot data and logs
+      - bot-data:/app/data
+
+      # Working directory (mount from host or volume)
+      - approved-directory:/approved-directory
+
+    # Docker secrets (secure way to pass sensitive data)
+    secrets:
+      - telegram_bot_token
+      - telegram_bot_username
+      - allowed_users
+
+    # Environment variables (non-sensitive config)
+    environment:
+      # Point to Docker secret files
+      - TELEGRAM_BOT_TOKEN_FILE=/run/secrets/telegram_bot_token
+      - TELEGRAM_BOT_USERNAME_FILE=/run/secrets/telegram_bot_username
+      - ALLOWED_USERS_FILE=/run/secrets/allowed_users
+
+      # Bot configuration
+      - APPROVED_DIRECTORY=/approved-directory
+      - USE_SDK=false
+      - CLAUDE_MAX_TURNS=10
+      - CLAUDE_MAX_COST_PER_USER=10.0
+      - CLAUDE_TIMEOUT_SECONDS=900
+      - RATE_LIMIT_REQUESTS=10
+      - RATE_LIMIT_WINDOW=60
+      - ENABLE_FILE_UPLOADS=true
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+
+      # Python configuration
+      - PYTHONUNBUFFERED=1
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import requests; requests.get('https://api.telegram.org', timeout=5).raise_for_status()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=telegram-bot"
+
+# Named volumes for data persistence
+volumes:
+  claude-auth:
+    driver: local
+
+  bot-data:
+    driver: local
+
+  approved-directory:
+    driver: local
+
+# Docker secrets (files containing sensitive data)
+secrets:
+  telegram_bot_token:
+    file: ./secrets/telegram_bot_token.txt
+
+  telegram_bot_username:
+    file: ./secrets/telegram_bot_username.txt
+
+  allowed_users:
+    file: ./secrets/allowed_users.txt

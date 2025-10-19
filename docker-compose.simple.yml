@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: telegram-bot:latest
+    container_name: telegram-bot
+    restart: unless-stopped
+
+    # Simplified: Pass secrets as environment variables directly
+    environment:
+      # Required (pass via command line)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
+      - ALLOWED_USERS=${ALLOWED_USERS:-[]}
+
+      # Optional configuration
+      - APPROVED_DIRECTORY=${APPROVED_DIRECTORY:-/approved-directory}
+      - USE_SDK=false
+      - CLAUDE_MAX_TURNS=10
+      - CLAUDE_MAX_COST_PER_USER=10.0
+      - CLAUDE_TIMEOUT_SECONDS=900
+      - RATE_LIMIT_REQUESTS=10
+      - RATE_LIMIT_WINDOW=60
+      - ENABLE_FILE_UPLOADS=true
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+
+    # Persistent volumes for Claude auth and data
+    volumes:
+      - claude-auth:/home/appuser/.claude
+      - bot-data:/app/data
+      - ${WORK_DIR:-./work}:/approved-directory
+
+    # Health check
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import requests; requests.get('https://api.telegram.org', timeout=5).raise_for_status()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+        reservations:
+          memory: 512M
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  claude-auth:
+    driver: local
+  bot-data:
+    driver: local

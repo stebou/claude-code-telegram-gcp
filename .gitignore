@@ -49,12 +49,16 @@ logs/
 *.db
 *.sqlite3
 
-# Secrets
+# Secrets - NEVER COMMIT
+secrets/
 *.pem
 *.key
 *.crt
 credentials.json
 service-account.json
+.credentials.json
+*.pfx
+*.p12
 
 # Temporary files
 tmp/
