@@ -34,13 +34,17 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StreamUpdate:
     """Streaming update from Claude SDK."""
-    type: str  # 'assistant', 'user', 'tool_use', 'tool_result', 'result', 'question'
+    type: str  # 'assistant', 'user', 'tool_use', 'tool_result', 'result', 'question', 'file_edit'
     content: Optional[str] = None
     tool_name: Optional[str] = None
     tool_calls: Optional[List[Dict]] = None
     metadata: Optional[Dict] = None
     # For AskUserQuestion
     question_data: Optional[Dict] = None  # Contains question text and options
+    # For file edits (diff preview)
+    file_path: Optional[str] = None
+    old_content: Optional[str] = None
+    new_content: Optional[str] = None
 
 
 @dataclass
@@ -246,6 +250,18 @@ class ClaudeSDKExecutor:
                                     "name": tool_name,
                                     "input": tool_input,
                                 })
+                            # Check if it's Write or Edit (file modification)
+                            elif tool_name in ("Write", "Edit"):
+                                # Capture file edit for diff preview
+                                await self._handle_file_edit(
+                                    tool_name,
+                                    tool_input,
+                                    stream_callback
+                                )
+                                tool_calls.append({
+                                    "name": tool_name,
+                                    "input": tool_input,
+                                })
                             else:
                                 tool_calls.append({
                                     "name": tool_name,
@@ -373,3 +389,68 @@ class ClaudeSDKExecutor:
         current_cost = await self.check_cost(user_id)
         max_cost = settings.claude_max_cost_per_user
         return current_cost < max_cost
+
+    async def _handle_file_edit(
+        self,
+        tool_name: str,
+        tool_input: dict,
+        stream_callback: Optional[Callable]
+    ) -> None:
+        """
+        Handle file edit/write tools - capture old content for diff.
+
+        Args:
+            tool_name: 'Write' or 'Edit'
+            tool_input: Tool input parameters
+            stream_callback: Callback to send diff preview
+        """
+        try:
+            from pathlib import Path
+
+            file_path = tool_input.get("file_path")
+            if not file_path:
+                return
+
+            # Resolve to absolute path
+            full_path = Path(self.approved_directory) / file_path
+            if not full_path.exists():
+                # New file - no diff needed (Write tool)
+                if tool_name == "Write":
+                    logger.info(f"New file will be created: {file_path}")
+                return
+
+            # Read old content
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    old_content = f.read()
+            except Exception as read_error:
+                logger.warning(f"Could not read file for diff: {read_error}")
+                return
+
+            # Get new content from tool input
+            if tool_name == "Write":
+                new_content = tool_input.get("content", "")
+            elif tool_name == "Edit":
+                # For Edit, we need to apply the edit to get new content
+                # For now, just notify that edit is happening
+                # (Full diff will be shown after edit completes)
+                old_string = tool_input.get("old_string", "")
+                new_string = tool_input.get("new_string", "")
+                new_content = old_content.replace(old_string, new_string, 1)
+            else:
+                return
+
+            # Send diff preview via stream callback
+            if stream_callback and old_content != new_content:
+                update = StreamUpdate(
+                    type="file_edit",
+                    content=f"File modification: {file_path}",
+                    file_path=str(file_path),
+                    old_content=old_content,
+                    new_content=new_content,
+                )
+                await stream_callback(update)
+                logger.info(f"Sent diff preview for {file_path}")
+
+        except Exception as e:
+            logger.error(f"Error handling file edit: {e}")

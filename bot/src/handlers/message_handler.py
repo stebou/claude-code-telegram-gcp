@@ -1,5 +1,6 @@
 """Telegram message handlers."""
 import asyncio
+import io
 import logging
 import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -7,6 +8,7 @@ from telegram.ext import ContextTypes
 
 from src.claude.sdk_executor import ClaudeSDKExecutor, StreamUpdate
 from src.security.validator import security_validator
+from src.utils.diff_image import generate_diff_image
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +115,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             """Update progress message with streaming updates."""
             nonlocal last_update_time
             current_time = asyncio.get_event_loop().time()
+
+            # Handle file edit diff preview (not throttled)
+            if update_obj.type == "file_edit":
+                try:
+                    # Generate diff image
+                    diff_image_bytes = generate_diff_image(
+                        update_obj.old_content,
+                        update_obj.new_content,
+                        update_obj.file_path
+                    )
+
+                    # Send diff image
+                    await update.message.reply_photo(
+                        photo=io.BytesIO(diff_image_bytes),
+                        caption=f"📝 Proposed changes to `{update_obj.file_path}`",
+                        parse_mode="Markdown"
+                    )
+                    logger.info(f"Sent diff image for {update_obj.file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to send diff image: {e}")
+                return
 
             # Throttle updates to max 1 per second to avoid Telegram rate limits
             if current_time - last_update_time < 1.0:

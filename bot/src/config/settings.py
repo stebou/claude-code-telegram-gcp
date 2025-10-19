@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Claude Configuration
     use_sdk: bool = Field(False, env="USE_SDK")
     claude_max_cost_per_user: float = Field(10.0, env="CLAUDE_MAX_COST_PER_USER")
-    claude_timeout_seconds: int = Field(300, env="CLAUDE_TIMEOUT_SECONDS")
+    claude_timeout_seconds: int = Field(900, env="CLAUDE_TIMEOUT_SECONDS")
     claude_allowed_tools: List[str] = Field(
         default=[
             "Read",
