@@ -23,7 +23,7 @@ htmlcov/
 .hypothesis/
 
 # Poetry
-poetry.lock
+# poetry.lock - NEEDED for Docker build, don't exclude!
 
 # IDE
 .vscode/
