@@ -122,6 +122,11 @@ class ClaudeSDKExecutor:
                 timeout=self.timeout,
             )
 
+            # Log message types before extraction
+            logger.info(f"Total messages collected: {len(messages)}")
+            for i, msg in enumerate(messages):
+                logger.debug(f"Message {i}: {type(msg).__name__}")
+
             # Extract content, metadata, and session_id
             content = self._extract_content_from_messages(messages)
             tools_used = self._extract_tools_from_messages(messages)
@@ -135,6 +140,9 @@ class ClaudeSDKExecutor:
                 f"Claude SDK completed successfully ({len(content)} chars, "
                 f"{len(tools_used)} tools used, {duration_ms}ms, session={captured_session_id})"
             )
+
+            # Log extraction results
+            logger.info(f"Extracted {len(content)} chars from {len(messages)} messages")
 
             return content, captured_session_id
 
@@ -178,6 +186,7 @@ class ClaudeSDKExecutor:
         try:
             async for message in query(prompt=prompt, options=options):
                 messages.append(message)
+                logger.debug(f"Collected message type: {type(message).__name__}")
 
                 # Handle streaming callback
                 if stream_callback:
@@ -190,6 +199,9 @@ class ClaudeSDKExecutor:
                         # Continue processing even if callback fails
 
         except Exception as e:
+            # Log messages collected before error
+            logger.info(f"Messages collected before error: {len(messages)}")
+
             # Handle ExceptionGroup from TaskGroup operations (Python 3.11+)
             if type(e).__name__ == "ExceptionGroup" or hasattr(e, "exceptions"):
                 exceptions = getattr(e, "exceptions", [e])
@@ -207,7 +219,7 @@ class ClaudeSDKExecutor:
 
                 if "failed to decode json" in error_msg or "json" in error_msg:
                     logger.warning(
-                        "Non-critical JSON decode error in SDK - continuing anyway"
+                        f"Non-critical JSON decode error in SDK - continuing with {len(messages)} messages"
                     )
                     # Don't raise - SDK bug but we have the messages we need
                     return
@@ -220,7 +232,7 @@ class ClaudeSDKExecutor:
                 logger.error(f"TaskGroup related error: {e}")
                 # Check for JSON error
                 if "json" in str(e).lower():
-                    logger.warning("Non-critical JSON error - continuing")
+                    logger.warning(f"Non-critical JSON error - continuing with {len(messages)} messages")
                     return
                 raise RuntimeError(f"Claude SDK task error: {str(e)}")
             else:
