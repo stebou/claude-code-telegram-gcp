@@ -43,22 +43,30 @@ EOF
 log_step "Starting installation..."
 
 # ============================================================================
-# Parse Arguments
+# Parse Arguments & Environment Variables
 # ============================================================================
-TELEGRAM_BOT_TOKEN=""
-TELEGRAM_BOT_USERNAME=""
+# Priority: 1. Command-line args  2. Environment variables  3. Interactive prompts
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_BOT_USERNAME="${TELEGRAM_BOT_USERNAME:-}"
+TELEGRAM_USER_ID="${TELEGRAM_USER_ID:-}"
 ALLOWED_USERS=""
-WORK_DIR="$HOME/claude-telegram-bot"
+WORK_DIR="${WORK_DIR:-$HOME/claude-telegram-bot}"
 
+# Parse command-line arguments (override env vars if provided)
 while [[ $# -gt 0 ]]; do
   case $1 in
     --token) TELEGRAM_BOT_TOKEN="$2"; shift 2 ;;
     --username) TELEGRAM_BOT_USERNAME="$2"; shift 2 ;;
-    --user-id) ALLOWED_USERS="[$2]"; shift 2 ;;
+    --user-id) TELEGRAM_USER_ID="$2"; shift 2 ;;
     --work-dir) WORK_DIR="$2"; shift 2 ;;
     *) shift ;;
   esac
 done
+
+# Set ALLOWED_USERS from TELEGRAM_USER_ID if available
+if [ -n "$TELEGRAM_USER_ID" ]; then
+  ALLOWED_USERS="[$TELEGRAM_USER_ID]"
+fi
 
 # ============================================================================
 # Interactive Input if not provided
@@ -86,8 +94,8 @@ if [ -z "$ALLOWED_USERS" ]; then
   echo "  2. Envoyer /start"
   echo "  3. Copier votre ID"
   echo ""
-  read -p "👤 Votre Telegram User ID: " USER_ID
-  ALLOWED_USERS="[$USER_ID]"
+  read -p "👤 Votre Telegram User ID: " TELEGRAM_USER_ID
+  ALLOWED_USERS="[$TELEGRAM_USER_ID]"
 fi
 
 # Validate inputs
