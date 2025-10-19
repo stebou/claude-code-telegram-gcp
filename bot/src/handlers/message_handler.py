@@ -1,16 +1,17 @@
 """Telegram message handlers."""
+import asyncio
 import logging
 import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from src.claude.executor import ClaudeExecutor
+from src.claude.sdk_executor import ClaudeSDKExecutor, StreamUpdate
 from src.security.validator import security_validator
 
 logger = logging.getLogger(__name__)
 
-# Global executor
-claude_executor = ClaudeExecutor()
+# Global executor (using SDK)
+claude_executor = ClaudeSDKExecutor()
 
 # Store pending actions for confirmation
 pending_actions = {}
@@ -83,9 +84,50 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Send "thinking" message
         thinking_msg = await update.message.reply_text("🤔 Processing...")
+        last_update_time = asyncio.get_event_loop().time()
 
-        # Execute Claude CLI
-        response = await claude_executor.execute(message_text, user_id)
+        # Streaming callback to show real-time progress
+        async def stream_callback(update_obj: StreamUpdate):
+            """Update progress message with streaming updates."""
+            nonlocal last_update_time
+            current_time = asyncio.get_event_loop().time()
+
+            # Throttle updates to max 1 per second to avoid Telegram rate limits
+            if current_time - last_update_time < 1.0:
+                return
+
+            last_update_time = current_time
+
+            # Format the progress message
+            progress_text = ""
+            if update_obj.type == "tool_use":
+                # Show tools being used
+                progress_text = f"🔧 **{update_obj.content}**"
+            elif update_obj.type == "assistant":
+                # Show Claude's thinking/response preview
+                content_preview = (
+                    update_obj.content[:150] + "..."
+                    if len(update_obj.content) > 150
+                    else update_obj.content
+                )
+                progress_text = f"🤖 **Working...**\n\n_{content_preview}_"
+            elif update_obj.type == "result":
+                # Execution completed
+                progress_text = "✅ **Completed!**"
+
+            if progress_text:
+                try:
+                    await thinking_msg.edit_text(progress_text, parse_mode="Markdown")
+                except Exception as e:
+                    # Ignore rate limit errors on streaming updates
+                    logger.debug(f"Failed to update progress: {e}")
+
+        # Execute Claude CLI with streaming
+        response = await claude_executor.execute(
+            message_text,
+            user_id,
+            stream_callback=stream_callback
+        )
 
         # Check if response contains an action that needs confirmation
         needs_confirmation = detect_action_in_response(response)
