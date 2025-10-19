@@ -215,9 +215,10 @@ class ClaudeProcessManager:
                     except Exception as e:
                         logger.warning(f"Stream callback failed: {e}")
 
-                # Extract content from assistant messages
+                # Extract content from assistant messages (richardatct format: msg.message.content)
                 if msg.get("type") == "assistant":
-                    content_blocks = msg.get("content", [])
+                    message = msg.get("message", {})
+                    content_blocks = message.get("content", [])
                     for block in content_blocks:
                         if isinstance(block, dict):
                             if block.get("type") == "text":
@@ -287,29 +288,32 @@ class ClaudeProcessManager:
                 yield line.decode("utf-8", errors="replace")
 
     def _parse_stream_message(self, msg: dict) -> Optional[StreamUpdate]:
-        """Parse stream-json message into StreamUpdate."""
+        """Parse stream-json message into StreamUpdate (richardatct format)."""
         msg_type = msg.get("type")
 
         if msg_type == "assistant":
-            # Extract tool calls
+            # Extract tool calls - format is msg.message.content
+            message = msg.get("message", {})
+            content_blocks = message.get("content", [])
+
             tool_calls = []
             text_parts = []
-            content = msg.get("content", [])
 
-            for block in content:
+            for block in content_blocks:
                 if isinstance(block, dict):
                     if block.get("type") == "tool_use":
                         tool_calls.append({
                             "name": block.get("name"),
                             "input": block.get("input", {}),
+                            "id": block.get("id"),
                         })
                     elif block.get("type") == "text":
                         text_parts.append(block.get("text", ""))
 
             if tool_calls:
                 return StreamUpdate(
-                    type="assistant",
-                    content="Using tools: " + ", ".join([t["name"] for t in tool_calls]),
+                    type="tool_use",
+                    content="🔧 " + ", ".join([t["name"] for t in tool_calls]),
                     tool_calls=tool_calls,
                 )
             elif text_parts:
@@ -319,16 +323,26 @@ class ClaudeProcessManager:
                 )
 
         elif msg_type == "tool_result":
-            return StreamUpdate(
-                type="tool_result",
-                content=f"Tool completed: {msg.get('tool_use_id', 'unknown')}",
-                metadata=msg,
-            )
+            result = msg.get("result", {})
+            is_error = result.get("is_error", False) if isinstance(result, dict) else False
+
+            if is_error:
+                return StreamUpdate(
+                    type="tool_result",
+                    content="❌ Tool failed",
+                    metadata=msg,
+                )
+            else:
+                return StreamUpdate(
+                    type="tool_result",
+                    content="✅ Tool completed",
+                    metadata=msg,
+                )
 
         elif msg_type == "result":
             return StreamUpdate(
                 type="result",
-                content="Execution completed",
+                content="✅ Execution completed",
                 metadata={
                     "cost": msg.get("total_cost_usd", 0.0),
                     "session_id": msg.get("session_id", ""),
