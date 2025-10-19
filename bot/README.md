@@ -10,6 +10,7 @@ Python Telegram bot that provides full access to Claude Code CLI with all tools 
 - ✅ Cost tracking and budget limits
 - ✅ Timeout protection
 - ✅ Async/await architecture
+- ✅ **Action confirmation buttons** - When Claude proposes an action, you get Proceed/Cancel buttons for safety
 
 ## Installation
 
@@ -99,12 +100,30 @@ Bot: *uses Read, Write, Edit tools*
 Bot: *creates auth.py*
 Bot: *updates main.py*
 Bot: "Feature added! Ready to commit?"
+     [✅ Proceed] [❌ Cancel]
 
-You: "Yes, commit and push to GitHub"
-Bot: *uses Bash tool*
+You: *clicks Proceed*
+Bot: "✅ Proceeding with action..."
+Bot: *creates files and updates code*
+Bot: "Files created successfully!"
+
+You: "Now commit and push to GitHub"
+Bot: "I can commit these changes. Proceed?"
+     [✅ Proceed] [❌ Cancel]
+
+You: *clicks Proceed*
 Bot: *git add, commit, push*
 Bot: "Pushed to GitHub successfully!"
 ```
+
+### Action Confirmation Buttons
+
+When Claude proposes to perform an action (create, modify, delete, commit, etc.), the bot automatically detects this and adds confirmation buttons:
+
+- **✅ Proceed** - Execute the proposed action
+- **❌ Cancel** - Cancel the action
+
+This provides an extra safety layer, especially for destructive operations like file deletion or git pushes.
 
 ## Security
 
