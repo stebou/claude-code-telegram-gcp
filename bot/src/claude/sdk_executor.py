@@ -74,23 +74,21 @@ class ClaudeSDKExecutor:
         self,
         message: str,
         user_id: int,
-        session_id: Optional[str] = None,
         stream_callback: Optional[Callable[[StreamUpdate], None]] = None,
-    ) -> tuple[str, Optional[str]]:
+    ) -> str:
         """
-        Execute a Claude Code SDK command with session persistence.
+        Execute a Claude Code SDK command.
 
         Args:
             message: User message to send to Claude
             user_id: Telegram user ID
-            session_id: Session ID to resume (None for new session)
             stream_callback: Optional callback for streaming updates
 
         Returns:
-            Tuple of (response, session_id)
+            Response text from Claude
         """
         try:
-            logger.info(f"Executing Claude SDK for user {user_id}, session={session_id}")
+            logger.info(f"Executing Claude SDK for user {user_id}")
 
             # Build Claude Code options with session resume
             system_prompt = (
@@ -107,7 +105,7 @@ class ClaudeSDKExecutor:
                 cwd=str(self.approved_directory),
                 allowed_tools=self.allowed_tools,
                 system_prompt=system_prompt,
-                resume=session_id,  # ✅ KEY: Resume existing session
+                # NOTE: NOT using resume parameter - SDK maintains sessions automatically via filesystem
             )
 
             # Collect messages
@@ -127,24 +125,22 @@ class ClaudeSDKExecutor:
             for i, msg in enumerate(messages):
                 logger.debug(f"Message {i}: {type(msg).__name__}")
 
-            # Extract content, metadata, and session_id
+            # Extract content
             content = self._extract_content_from_messages(messages)
             tools_used = self._extract_tools_from_messages(messages)
-            cost = self._extract_cost_from_messages(messages)
-            captured_session_id = self._extract_session_id_from_messages(messages)
 
             # Calculate duration
             duration_ms = int((asyncio.get_event_loop().time() - start_time) * 1000)
 
             logger.info(
                 f"Claude SDK completed successfully ({len(content)} chars, "
-                f"{len(tools_used)} tools used, {duration_ms}ms, session={captured_session_id})"
+                f"{len(tools_used)} tools used, {duration_ms}ms)"
             )
 
             # Log extraction results
             logger.info(f"Extracted {len(content)} chars from {len(messages)} messages")
 
-            return content, captured_session_id
+            return content
 
         except asyncio.TimeoutError:
             logger.error(f"Claude SDK command timed out after {self.timeout} seconds")
@@ -378,13 +374,6 @@ class ClaudeSDKExecutor:
                 return getattr(message, "total_cost_usd", 0.0) or 0.0
         return 0.0
 
-    def _extract_session_id_from_messages(self, messages: List[Message]) -> Optional[str]:
-        """Extract session_id from message list."""
-        for message in messages:
-            if hasattr(message, "session_id") and message.session_id:
-                logger.info(f"📝 Captured session_id: {message.session_id}")
-                return message.session_id
-        return None
 
     async def check_cost(self, user_id: int) -> float:
         """
