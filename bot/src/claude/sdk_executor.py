@@ -34,11 +34,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StreamUpdate:
     """Streaming update from Claude SDK."""
-    type: str  # 'assistant', 'user', 'tool_use', 'tool_result', 'result'
+    type: str  # 'assistant', 'user', 'tool_use', 'tool_result', 'result', 'question'
     content: Optional[str] = None
     tool_name: Optional[str] = None
     tool_calls: Optional[List[Dict]] = None
     metadata: Optional[Dict] = None
+    # For AskUserQuestion
+    question_data: Optional[Dict] = None  # Contains question text and options
 
 
 @dataclass
@@ -62,6 +64,7 @@ class ClaudeSDKExecutor:
         self.timeout = settings.claude_timeout_seconds
         self.allowed_tools = settings.claude_allowed_tools
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
+        self.pending_questions: Dict[int, Dict[str, Any]] = {}  # user_id -> question data
 
     async def execute(
         self,
@@ -83,11 +86,21 @@ class ClaudeSDKExecutor:
         try:
             logger.info(f"Executing Claude SDK for user {user_id}")
 
-            # Build Claude Code options
+            # Build Claude Code options with system prompt
+            system_prompt = (
+                "IMPORTANT: Before using Write, Edit, or Bash tools to modify files or execute commands, "
+                "you MUST first ask the user for confirmation using clear language like:\n"
+                "- 'Should I create this file?'\n"
+                "- 'May I modify this file?'\n"
+                "- 'Do you want me to run this command?'\n\n"
+                "Always wait for explicit user approval (yes/no) before proceeding with any modifications."
+            )
+
             options = ClaudeCodeOptions(
                 max_turns=10,
                 cwd=str(self.approved_directory),
                 allowed_tools=self.allowed_tools,
+                system_prompt=system_prompt,
             )
 
             # Collect messages
@@ -218,19 +231,40 @@ class ClaudeSDKExecutor:
                     # Check for tool calls
                     tool_calls = []
                     text_parts = []
+                    ask_question_calls = []
 
                     for block in content:
                         if isinstance(block, ToolUseBlock):
                             # Tool is being called
                             tool_name = getattr(block, "name", "unknown")
                             tool_input = getattr(block, "input", {})
-                            tool_calls.append({
-                                "name": tool_name,
-                                "input": tool_input,
-                            })
+
+                            # Check if it's AskUserQuestion
+                            if tool_name == "AskUserQuestion":
+                                ask_question_calls.append({
+                                    "id": getattr(block, "id", None),
+                                    "name": tool_name,
+                                    "input": tool_input,
+                                })
+                            else:
+                                tool_calls.append({
+                                    "name": tool_name,
+                                    "input": tool_input,
+                                })
                         elif hasattr(block, "text"):
                             # Text content
                             text_parts.append(block.text)
+
+                    # Handle AskUserQuestion separately (needs user interaction)
+                    if ask_question_calls:
+                        for question_call in ask_question_calls:
+                            update = StreamUpdate(
+                                type="question",
+                                content="Claude is asking for your input...",
+                                tool_name="AskUserQuestion",
+                                question_data=question_call,
+                            )
+                            await stream_callback(update)
 
                     if tool_calls:
                         # Send tool usage update

@@ -41,24 +41,46 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def detect_action_in_response(response: str) -> bool:
     """Detect if Claude is proposing an action that needs confirmation."""
     action_keywords = [
+        # Question patterns
         r"shall i",
         r"should i",
         r"would you like me to",
         r"do you want me to",
+        r"may i",
         r"can i",
-        r"i can create",
-        r"i can modify",
-        r"i can delete",
-        r"i can update",
-        r"i'll create",
-        r"i'll modify",
-        r"i'll delete",
-        r"i'll update",
+
+        # Action patterns
+        r"i can (create|modify|delete|update|write|edit|run)",
+        r"i'll (create|modify|delete|update|write|edit|run)",
+        r"i'm (going to|about to) (create|modify|delete|update|write|edit|run)",
+
+        # Specific file actions
+        r"create (this|the|a) file",
+        r"modify (this|the|a) file",
+        r"write to",
+        r"edit the file",
+        r"delete (this|the|a) file",
+        r"run (this|the) command",
+        r"execute (this|the) command",
+
+        # Git actions
         r"ready to commit",
         r"ready to push",
+        r"commit (these|the) changes",
+
+        # Yes/No questions
+        r"\?\s*$",  # Ends with a question mark
     ]
 
     response_lower = response.lower()
+
+    # Check for question mark at the end (strong indicator)
+    if response_lower.strip().endswith('?'):
+        # Check if it mentions file operations
+        file_ops = ['create', 'write', 'edit', 'modify', 'delete', 'remove', 'run', 'execute']
+        if any(op in response_lower for op in file_ops):
+            return True
+
     return any(re.search(pattern, response_lower) for pattern in action_keywords)
 
 
