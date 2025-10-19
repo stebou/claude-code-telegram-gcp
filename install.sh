@@ -245,14 +245,22 @@ log_info "✅ Code downloaded to $WORK_DIR"
 # Build Docker Image
 # ============================================================================
 log_step "🔨 Building Docker image (this may take 3-5 minutes)..."
+echo ""
+log_info "You will see the full build output below (3 stages):"
+echo "   Stage 1: Python dependencies (Poetry)"
+echo "   Stage 2: Claude CLI installation (npm)"
+echo "   Stage 3: Final runtime image"
+echo ""
 
-run_docker build -t telegram-bot:latest -f Dockerfile . 2>&1 | grep -E "^Step|^Successfully|ERROR" || true
+# Show full build output so user can see progress
+run_docker build -t telegram-bot:latest -f Dockerfile .
 
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
+if [ $? -ne 0 ]; then
   log_error "Docker build failed"
   exit 1
 fi
 
+echo ""
 log_info "✅ Docker image built"
 
 # ============================================================================
