@@ -288,6 +288,8 @@ echo ""
 read -p "Press ENTER to start authentication..."
 
 # Run interactive Claude auth
+# Note: claude auth login may clear the terminal, so we handle that gracefully
+AUTH_RESULT=0
 run_docker run -it --rm \
   -v telegram-bot_claude-auth:/home/appuser/.claude \
   telegram-bot:latest \
@@ -295,25 +297,42 @@ run_docker run -it --rm \
     echo '🔐 Starting Claude CLI authentication...'
     echo ''
     claude auth login
+    AUTH_CODE=\$?
 
-    if [ \$? -eq 0 ]; then
-      echo ''
+    echo ''
+    echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+    if [ \$AUTH_CODE -eq 0 ]; then
       echo '✅ Authentication successful!'
       echo ''
-      echo 'Verifying...'
+      echo 'Verifying authentication status...'
       claude auth status
+      EXIT_CODE=\$?
+      echo ''
+      echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      exit \$EXIT_CODE
     else
       echo '❌ Authentication failed'
+      echo ''
+      echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
       exit 1
     fi
-  "
+  " || AUTH_RESULT=$?
 
-if [ $? -ne 0 ]; then
+# Check authentication result
+if [ $AUTH_RESULT -ne 0 ]; then
+  echo ""
   log_error "Claude authentication failed"
   exit 1
 fi
 
-log_info "✅ Claude authenticated"
+# Restore terminal and continue
+echo ""
+log_info "✅ Claude authenticated successfully"
+echo ""
+log_info "🔄 Continuing installation..."
+echo ""
+sleep 2
 
 # ============================================================================
 # Start Bot with Docker Run
