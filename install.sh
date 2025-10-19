@@ -231,7 +231,13 @@ fi
 # Remove old installation
 if [ -d "$WORK_DIR" ]; then
   log_warn "Existing installation found - Removing..."
-  rm -rf "$WORK_DIR"
+
+  # Try to remove normally first
+  if ! rm -rf "$WORK_DIR" 2>/dev/null; then
+    # If failed (likely due to Docker volume permissions), use sudo
+    log_info "Using sudo to remove Docker-created files..."
+    sudo rm -rf "$WORK_DIR"
+  fi
 fi
 
 # Clone
