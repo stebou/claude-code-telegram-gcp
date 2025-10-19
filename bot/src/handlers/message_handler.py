@@ -5,14 +5,14 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from src.claude.sdk_executor import ClaudeSDKExecutor, StreamUpdate
+from src.claude.cli_executor import ClaudeProcessManager, StreamUpdate
 from src.security.validator import security_validator
-from src.utils.diff_image import generate_diff_image
+from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Global executor (using SDK)
-claude_executor = ClaudeSDKExecutor()
+# Global executor (using CLI subprocess like richardatct)
+claude_executor = ClaudeProcessManager(settings)
 
 # Note: No confirmation system - Claude executes actions directly (like richardatct)
 
@@ -55,10 +55,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⏱️ Rate limit exceeded. Please wait.")
         return
 
-    # Check budget
-    if not await claude_executor.is_within_budget(user_id):
-        await update.message.reply_text("💰 Budget limit exceeded.")
-        return
+    # Budget check removed (CLI doesn't have built-in budget tracking)
 
     try:
         # Send "thinking" message
@@ -122,12 +119,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Ignore rate limit errors on streaming updates
                     logger.debug(f"Failed to update progress: {e}")
 
-        # Execute Claude CLI with streaming (SDK manages sessions automatically)
-        response = await claude_executor.execute(
-            message_text,
-            user_id,
+        # Get current session ID (if any)
+        session_id = context.user_data.get('claude_session_id')
+
+        # Execute Claude CLI with streaming (subprocess approach)
+        response_obj = await claude_executor.execute_command(
+            prompt=message_text,
+            working_directory=claude_executor.config.approved_directory,
+            session_id=session_id,
+            continue_session=bool(session_id),
             stream_callback=stream_callback
         )
+
+        # Store session ID for next message
+        if response_obj.session_id:
+            context.user_data['claude_session_id'] = response_obj.session_id
+
+        # Get response text
+        response = response_obj.content
 
         # Send response (split if too long) - no confirmation needed
         if len(response) > 4096:
