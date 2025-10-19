@@ -3,10 +3,10 @@ Main entry point for the Telegram bot.
 """
 import logging
 import sys
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from src.config.settings import settings
-from src.handlers.message_handler import start_command, handle_message, handle_callback_query
+from src.handlers.message_handler import start_command, handle_message
 
 # Configure logging
 logging.basicConfig(
@@ -28,14 +28,13 @@ def main():
 
     # Add handlers
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
 
     # Start polling
     logger.info("Bot started successfully. Polling for messages...")
-    application.run_polling(allowed_updates=["message", "callback_query"])
+    application.run_polling(allowed_updates=["message"])
 
 
 if __name__ == "__main__":
