@@ -167,19 +167,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Ignore rate limit errors on streaming updates
                     logger.debug(f"Failed to update progress: {e}")
 
-        # Get existing conversation history from context
-        conversation_history = context.user_data.get("conversation_history", [])
+        # Get existing session_id from context (None for new session)
+        session_id = context.user_data.get("claude_session_id")
 
         # Execute Claude CLI with streaming
-        response, updated_history = await claude_executor.execute(
+        response, new_session_id = await claude_executor.execute(
             message_text,
             user_id,
-            conversation_history=conversation_history,
+            session_id=session_id,
             stream_callback=stream_callback
         )
 
-        # Store updated conversation history
-        context.user_data["conversation_history"] = updated_history
+        # Store session_id for future messages
+        if new_session_id:
+            context.user_data["claude_session_id"] = new_session_id
+            logger.info(f"📝 Session stored for user {user_id}: {new_session_id}")
 
         # Check if response contains an action that needs confirmation
         needs_confirmation = detect_action_in_response(response)
@@ -295,19 +297,20 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             await query.message.reply_text("💰 Budget limit exceeded.")
             return
 
-        # Get existing conversation history from context
-        conversation_history = context.user_data.get("conversation_history", [])
+        # Get existing session_id from context
+        session_id = context.user_data.get("claude_session_id")
 
         # Execute the confirmed action
         thinking_msg = await query.message.reply_text("🔄 Executing action...")
-        response, updated_history = await claude_executor.execute(
+        response, new_session_id = await claude_executor.execute(
             confirmation_message,
             user_id,
-            conversation_history=conversation_history
+            session_id=session_id
         )
 
-        # Store updated conversation history
-        context.user_data["conversation_history"] = updated_history
+        # Store session_id for future messages
+        if new_session_id:
+            context.user_data["claude_session_id"] = new_session_id
 
         # Send final response
         if len(response) > 4096:

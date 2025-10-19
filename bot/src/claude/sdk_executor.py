@@ -74,39 +74,25 @@ class ClaudeSDKExecutor:
         self,
         message: str,
         user_id: int,
-        conversation_history: Optional[List[Dict[str, str]]] = None,
+        session_id: Optional[str] = None,
         stream_callback: Optional[Callable[[StreamUpdate], None]] = None,
-    ) -> tuple[str, List[Dict[str, str]]]:
+    ) -> tuple[str, Optional[str]]:
         """
-        Execute a Claude Code SDK command.
+        Execute a Claude Code SDK command with session persistence.
 
         Args:
             message: User message to send to Claude
             user_id: Telegram user ID
-            conversation_history: Previous conversation messages (list of {role, content})
+            session_id: Session ID to resume (None for new session)
             stream_callback: Optional callback for streaming updates
 
         Returns:
-            Tuple of (response, updated_conversation_history)
+            Tuple of (response, session_id)
         """
         try:
-            logger.info(f"Executing Claude SDK for user {user_id}")
+            logger.info(f"Executing Claude SDK for user {user_id}, session={session_id}")
 
-            # Initialize or update conversation history
-            if conversation_history is None:
-                conversation_history = []
-
-            # Build lightweight context - only last assistant message if user said "yes"
-            context_hint = ""
-            if conversation_history and len(conversation_history) >= 2:
-                last_msg = conversation_history[-1]
-                if last_msg.get("role") == "user" and last_msg.get("content", "").lower().strip() in ["yes", "oui", "y", "o"]:
-                    # User confirmed - include previous assistant question for context
-                    prev_msg = conversation_history[-2]
-                    if prev_msg.get("role") == "assistant":
-                        context_hint = f"\n\nPREVIOUS QUESTION: {prev_msg.get('content', '')[:200]}\nUSER CONFIRMED: yes\n"
-
-            # Build Claude Code options with SHORT system prompt
+            # Build Claude Code options with session resume
             system_prompt = (
                 "IMPORTANT: Before using Write, Edit, or Bash tools to modify files or execute commands, "
                 "you MUST first ask the user for confirmation using clear language like:\n"
@@ -114,7 +100,6 @@ class ClaudeSDKExecutor:
                 "- 'May I modify this file?'\n"
                 "- 'Do you want me to run this command?'\n\n"
                 "Always wait for explicit user approval (yes/no) before proceeding with any modifications."
-                f"{context_hint}"
             )
 
             options = ClaudeCodeOptions(
@@ -122,6 +107,7 @@ class ClaudeSDKExecutor:
                 cwd=str(self.approved_directory),
                 allowed_tools=self.allowed_tools,
                 system_prompt=system_prompt,
+                resume=session_id,  # ✅ KEY: Resume existing session
             )
 
             # Collect messages
@@ -136,24 +122,21 @@ class ClaudeSDKExecutor:
                 timeout=self.timeout,
             )
 
-            # Extract content and metadata
+            # Extract content, metadata, and session_id
             content = self._extract_content_from_messages(messages)
             tools_used = self._extract_tools_from_messages(messages)
             cost = self._extract_cost_from_messages(messages)
+            captured_session_id = self._extract_session_id_from_messages(messages)
 
             # Calculate duration
             duration_ms = int((asyncio.get_event_loop().time() - start_time) * 1000)
 
             logger.info(
                 f"Claude SDK completed successfully ({len(content)} chars, "
-                f"{len(tools_used)} tools used, {duration_ms}ms)"
+                f"{len(tools_used)} tools used, {duration_ms}ms, session={captured_session_id})"
             )
 
-            # Update conversation history
-            conversation_history.append({"role": "user", "content": message})
-            conversation_history.append({"role": "assistant", "content": content})
-
-            return content, conversation_history
+            return content, captured_session_id
 
         except asyncio.TimeoutError:
             logger.error(f"Claude SDK command timed out after {self.timeout} seconds")
@@ -382,6 +365,14 @@ class ClaudeSDKExecutor:
             if isinstance(message, ResultMessage):
                 return getattr(message, "total_cost_usd", 0.0) or 0.0
         return 0.0
+
+    def _extract_session_id_from_messages(self, messages: List[Message]) -> Optional[str]:
+        """Extract session_id from message list."""
+        for message in messages:
+            if hasattr(message, "session_id") and message.session_id:
+                logger.info(f"📝 Captured session_id: {message.session_id}")
+                return message.session_id
+        return None
 
     async def check_cost(self, user_id: int) -> float:
         """
