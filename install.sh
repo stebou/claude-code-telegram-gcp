@@ -274,7 +274,12 @@ log_info "✅ Docker image built"
 log_step "📁 Creating working directory..."
 
 mkdir -p "$WORK_DIR/work"
-chmod 755 "$WORK_DIR/work"
+
+# Set permissions (try normal chmod first, then sudo if needed)
+if ! chmod 755 "$WORK_DIR/work" 2>/dev/null; then
+  log_info "Using sudo to set permissions..."
+  sudo chmod 755 "$WORK_DIR/work"
+fi
 
 log_info "✅ Working directory: $WORK_DIR/work"
 
