@@ -66,7 +66,7 @@ The bot has full access to Git operations, so you can:
 │  GCP e2-small VM (2GB RAM)      │
 │  ┌───────────────────────────┐  │
 │  │  Python Telegram Bot      │  │
-│  │  (RichardAtCT repo)       │  │
+│  │  (included in this repo)  │  │
 │  └───────┬───────────────────┘  │
 │          │ subprocess           │
 │  ┌───────▼───────────────────┐  │
@@ -85,6 +85,30 @@ The bot has full access to Git operations, so you can:
     ┌─────────────┐
     │   GitHub    │
     └─────────────┘
+```
+
+## 📁 Repository Structure
+
+```
+claude-code-telegram-gcp/
+├── bot/                          # Python Telegram bot (complete code)
+│   ├── src/
+│   │   ├── config/              # Configuration management
+│   │   ├── claude/              # Claude CLI executor
+│   │   ├── security/            # Auth & rate limiting
+│   │   ├── handlers/            # Message handlers
+│   │   └── main.py              # Entry point
+│   ├── pyproject.toml           # Poetry dependencies
+│   └── README.md                # Bot documentation
+├── scripts/
+│   ├── create-vm.sh             # VM creation script
+│   └── setup-bot.sh             # Bot installation script
+├── config/
+│   └── .env.example             # Configuration template
+├── docs/
+│   └── GCP_DEPLOYMENT_GUIDE.md  # Detailed deployment guide
+├── LICENSE                      # MIT License
+└── README.md                    # This file
 ```
 
 ## 📋 Prerequisites

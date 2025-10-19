@@ -17,7 +17,7 @@ read -p "Enter your Telegram User ID (from @userinfobot): " ALLOWED_USER_ID
 read -p "Enter your project Git repository URL: " PROJECT_REPO
 read -p "Enter your project directory name (e.g., my-project): " PROJECT_DIR_NAME
 
-BOT_REPO="https://github.com/RichardAtCT/claude-code-telegram.git"
+BOT_REPO="https://github.com/stebou/claude-code-telegram-gcp.git"
 WORK_DIR="/home/$USER/telegram-bot"
 
 echo ""
@@ -57,21 +57,22 @@ cd $WORK_DIR
 echo "✅ Dossier créé: $WORK_DIR"
 echo ""
 
-# 3. Cloner repository du bot
-echo "📥 Clonage RichardAtCT/claude-code-telegram..."
-if [ -d "claude-code-telegram" ]; then
+# 3. Cloner repository complet (bot + scripts)
+echo "📥 Clonage claude-code-telegram-gcp repository..."
+if [ -d "claude-code-telegram-gcp" ]; then
   echo "⚠️  Repository déjà cloné"
-  cd claude-code-telegram
+  cd claude-code-telegram-gcp
   git pull
 else
   git clone $BOT_REPO
-  cd claude-code-telegram
+  cd claude-code-telegram-gcp
 fi
 echo "✅ Repository cloné"
 echo ""
 
 # 4. Installer dépendances Python avec Poetry
 echo "📦 Installation dépendances Python..."
+cd bot
 export PATH="/home/$USER/.local/bin:$PATH"
 poetry install
 echo "✅ Dépendances installées"
@@ -147,14 +148,14 @@ cat > $WORK_DIR/start-bot.sh << 'SCRIPT_EOF'
 #!/bin/bash
 
 WORK_DIR="/home/$USER/telegram-bot"
-cd $WORK_DIR/claude-code-telegram
+cd $WORK_DIR/claude-code-telegram-gcp/bot
 
 # Charger PATH pour Poetry
 export PATH="/home/$USER/.local/bin:$PATH"
 
 # Démarrer le bot avec Poetry
 echo "🤖 Démarrage Telegram Bot..."
-poetry run python -m src.main --debug
+poetry run python -m src.main
 SCRIPT_EOF
 
 chmod +x $WORK_DIR/start-bot.sh
