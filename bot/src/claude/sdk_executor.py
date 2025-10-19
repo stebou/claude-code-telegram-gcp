@@ -96,17 +96,17 @@ class ClaudeSDKExecutor:
             if conversation_history is None:
                 conversation_history = []
 
-            # Build conversation context from history
-            conversation_context = ""
-            if conversation_history:
-                conversation_context = "\n\nPREVIOUS CONVERSATION:\n"
-                for msg in conversation_history[-10:]:  # Keep last 10 messages max
-                    role = msg.get("role", "unknown")
-                    content = msg.get("content", "")
-                    conversation_context += f"{role.upper()}: {content}\n"
-                conversation_context += "\nCURRENT USER MESSAGE:\n"
+            # Build lightweight context - only last assistant message if user said "yes"
+            context_hint = ""
+            if conversation_history and len(conversation_history) >= 2:
+                last_msg = conversation_history[-1]
+                if last_msg.get("role") == "user" and last_msg.get("content", "").lower().strip() in ["yes", "oui", "y", "o"]:
+                    # User confirmed - include previous assistant question for context
+                    prev_msg = conversation_history[-2]
+                    if prev_msg.get("role") == "assistant":
+                        context_hint = f"\n\nPREVIOUS QUESTION: {prev_msg.get('content', '')[:200]}\nUSER CONFIRMED: yes\n"
 
-            # Build Claude Code options with system prompt including history
+            # Build Claude Code options with SHORT system prompt
             system_prompt = (
                 "IMPORTANT: Before using Write, Edit, or Bash tools to modify files or execute commands, "
                 "you MUST first ask the user for confirmation using clear language like:\n"
@@ -114,7 +114,7 @@ class ClaudeSDKExecutor:
                 "- 'May I modify this file?'\n"
                 "- 'Do you want me to run this command?'\n\n"
                 "Always wait for explicit user approval (yes/no) before proceeding with any modifications."
-                f"{conversation_context}"
+                f"{context_hint}"
             )
 
             options = ClaudeCodeOptions(
