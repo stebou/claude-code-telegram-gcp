@@ -297,7 +297,7 @@ echo "Steps:"
 echo "  1. A tmux window will open automatically"
 echo "  2. Follow the authentication URL in your browser"
 echo "  3. Complete the login"
-echo "  4. When done, press Ctrl+D or type 'exit' to close tmux"
+echo "  4. tmux will close automatically after 3 seconds"
 echo "  5. Installation will continue automatically"
 echo ""
 read -p "Press ENTER to start authentication in tmux..."
@@ -334,16 +334,16 @@ tmux new-session \
           echo \\\"\\\"
           echo \\\"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\\"
           echo \\\"\\\"
-          echo \\\"✅ You can now close this window (Ctrl+D or type exit)\\\"
-          echo \\\"The installation will continue automatically.\\\"
-          read -p \\\"Press ENTER to continue...\\\"
+          echo \\\"✅ Authentication complete! Closing in 3 seconds...\\\"
+          echo \\\"Installation will continue automatically.\\\"
+          sleep 3
           exit 0
         else
           echo \\\"❌ Authentication failed\\\"
           echo \\\"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\\"
           echo \\\"\\\"
-          echo \\\"Press ENTER to close...\\\"
-          read
+          echo \\\"❌ Closing in 5 seconds...\\\"
+          sleep 5
           exit 1
         fi
       \"
