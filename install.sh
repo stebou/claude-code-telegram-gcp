@@ -6,7 +6,14 @@
 #   curl -sSL https://raw.githubusercontent.com/stebou/claude-code-telegram-gcp/main/install.sh | bash
 #
 # Or with parameters:
-#   curl -sSL https://... | bash -s -- --token XXX --username YYY --user-id ZZZ
+#   curl -sSL https://... | bash -s -- --token XXX --username YYY --user-id ZZZ --git-repo https://github.com/user/repo.git
+#
+# Available parameters:
+#   --token       : Telegram Bot Token
+#   --username    : Telegram Bot Username
+#   --user-id     : Telegram User ID (authorized user)
+#   --git-repo    : Git repository URL to clone (optional)
+#   --work-dir    : Working directory (default: $HOME/claude-telegram-bot)
 # ============================================================================
 
 set -e
@@ -67,6 +74,7 @@ TELEGRAM_BOT_USERNAME="${TELEGRAM_BOT_USERNAME:-}"
 TELEGRAM_USER_ID="${TELEGRAM_USER_ID:-}"
 ALLOWED_USERS=""
 WORK_DIR="${WORK_DIR:-$HOME/claude-telegram-bot}"
+GIT_REPO_URL="${GIT_REPO_URL:-}"
 
 # Parse command-line arguments (override env vars if provided)
 while [[ $# -gt 0 ]]; do
@@ -75,6 +83,7 @@ while [[ $# -gt 0 ]]; do
     --username) TELEGRAM_BOT_USERNAME="$2"; shift 2 ;;
     --user-id) TELEGRAM_USER_ID="$2"; shift 2 ;;
     --work-dir) WORK_DIR="$2"; shift 2 ;;
+    --git-repo) GIT_REPO_URL="$2"; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -112,6 +121,16 @@ if [ -z "$ALLOWED_USERS" ]; then
   echo ""
   read -p "👤 Votre Telegram User ID: " TELEGRAM_USER_ID
   ALLOWED_USERS="[$TELEGRAM_USER_ID]"
+fi
+
+if [ -z "$GIT_REPO_URL" ]; then
+  echo ""
+  log_step "📦 Git Repository (Optional)"
+  echo ""
+  echo "Vous pouvez cloner un repository Git dans votre espace de travail."
+  echo "Le repo sera accessible par Claude Code via Telegram."
+  echo ""
+  read -p "🔗 Git Repository URL (ou ENTER pour skip): " GIT_REPO_URL
 fi
 
 # Validate inputs
@@ -282,6 +301,36 @@ if ! chmod 755 "$WORK_DIR/work" 2>/dev/null; then
 fi
 
 log_info "✅ Working directory: $WORK_DIR/work"
+
+# ============================================================================
+# Clone Git Repository (Optional)
+# ============================================================================
+if [ -n "$GIT_REPO_URL" ]; then
+  log_step "📦 Cloning Git repository..."
+  echo ""
+
+  # Extract repo name from URL
+  REPO_NAME=$(basename "$GIT_REPO_URL" .git)
+  REPO_PATH="$WORK_DIR/work/$REPO_NAME"
+
+  if [ -d "$REPO_PATH" ]; then
+    log_warn "Repository directory already exists: $REPO_PATH"
+    log_info "Pulling latest changes..."
+    cd "$REPO_PATH" && git pull || log_warn "Git pull failed, continuing..."
+  else
+    log_info "Cloning $GIT_REPO_URL..."
+    git clone "$GIT_REPO_URL" "$REPO_PATH"
+
+    if [ $? -eq 0 ]; then
+      log_info "✅ Repository cloned to: $REPO_PATH"
+    else
+      log_error "Failed to clone repository"
+      log_warn "Continuing installation without repository..."
+    fi
+  fi
+
+  echo ""
+fi
 
 # ============================================================================
 # Authenticate Claude CLI
@@ -471,3 +520,74 @@ EOF
 # Show recent logs
 log_info "📋 Recent logs:"
 run_docker logs telegram-bot --tail=20
+
+# ============================================================================
+# VSCode SSH Remote Configuration
+# ============================================================================
+echo ""
+log_step "💻 VSCode SSH Remote Configuration"
+echo ""
+
+# Detect server IP (try multiple methods)
+SERVER_IP=""
+
+# Method 1: Use curl to get external IP
+if command -v curl &> /dev/null; then
+  SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null)
+fi
+
+# Method 2: Use hostname if external IP failed
+if [ -z "$SERVER_IP" ]; then
+  SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+fi
+
+# Method 3: Fallback to localhost
+if [ -z "$SERVER_IP" ]; then
+  SERVER_IP="YOUR_SERVER_IP"
+  log_warn "Could not detect server IP automatically"
+fi
+
+# Detect current user
+CURRENT_USER=$(whoami)
+
+cat << EOF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 📝 Ajoutez cette configuration à ~/.ssh/config
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Claude Telegram Bot Server
+Host claude-bot
+    HostName $SERVER_IP
+    User $CURRENT_USER
+    Port 22
+    IdentityFile ~/.ssh/id_rsa
+    StrictHostKeyChecking no
+    UserKnownHostsFile=/dev/null
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+    TCPKeepAlive yes
+    Compression yes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pour vous connecter depuis VSCode :
+  1. Installer l'extension "Remote - SSH"
+  2. Ouvrir Command Palette (Cmd+Shift+P)
+  3. Taper "Remote-SSH: Connect to Host"
+  4. Sélectionner "claude-bot"
+  5. VSCode se connectera automatiquement
+
+Répertoire de travail :
+  $WORK_DIR/work
+EOF
+
+if [ -n "$GIT_REPO_URL" ]; then
+  REPO_NAME=$(basename "$GIT_REPO_URL" .git)
+  echo ""
+  echo "Votre repository :"
+  echo "  $WORK_DIR/work/$REPO_NAME"
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
