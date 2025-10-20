@@ -339,66 +339,69 @@ log_step "🔑 Claude CLI Authentication"
 echo ""
 log_warn "You need to authenticate with your Claude account"
 echo ""
-echo "We'll open a tmux session for authentication."
-echo "This prevents terminal clearing from interrupting the installation."
+echo "We'll open a split tmux session for authentication."
+echo "You'll see:"
+echo "  • Top panel: Installation progress"
+echo "  • Bottom panel: Claude authentication (interactive)"
 echo ""
-echo "Steps:"
-echo "  1. A tmux window will open automatically"
-echo "  2. Follow the authentication URL in your browser"
-echo "  3. Complete the login"
-echo "  4. tmux will close automatically after 3 seconds"
-echo "  5. Installation will continue automatically"
+echo "This layout keeps context visible while you authenticate."
 echo ""
-read -p "Press ENTER to start authentication in tmux..."
+read -p "Press ENTER to start authentication..."
 
-# Run Claude auth in tmux
-# This way when Claude CLI clears the terminal, it doesn't affect the script
+# Detect docker command
+if [ "$DOCKER_JUST_INSTALLED" = true ]; then
+  DOCKER_CMD="sudo docker"
+else
+  DOCKER_CMD="docker"
+fi
+
+# Create tmux session with split panes
 AUTH_RESULT=0
-tmux new-session \
-  "$(which bash) -c '
-    echo \"🔐 Starting Claude CLI authentication...\"
+tmux new-session -d -s claude-auth -x "$(tput cols)" -y "$(tput lines)" \; \
+  send-keys "$(which bash) -c '
+    # Top pane: Installation progress messages
     echo \"\"
+    echo \"╔════════════════════════════════════════════════════════════════╗\"
+    echo \"║           📦 Claude Telegram Bot Installation                 ║\"
+    echo \"╚════════════════════════════════════════════════════════════════╝\"
+    echo \"\"
+    echo \"  ✅ Docker installed\"
+    echo \"  ✅ Image built\"
+    echo \"  ⏳ Waiting for Claude authentication...\"
+    echo \"\"
+    echo \"  👇 Please complete authentication in the panel below\"
+    echo \"\"
+    echo \"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\"
 
-    # Use the same docker wrapper as the rest of the script
-    if [ \"$DOCKER_JUST_INSTALLED\" = true ]; then
-      DOCKER_CMD=\"sudo docker\"
+    # Keep this pane alive
+    while true; do sleep 1; done
+  '" C-m \; \
+  split-window -v -p 40 \; \
+  send-keys "$DOCKER_CMD run -it --rm -v telegram-bot_claude-auth:/home/appuser/.claude telegram-bot:latest bash -c '
+    claude auth login
+    AUTH_CODE=\$?
+
+    echo \"\"
+    echo \"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\"
+
+    if [ \$AUTH_CODE -eq 0 ]; then
+      echo \"✅ Authentication successful!\"
+      echo \"\"
+      claude auth status
+      echo \"\"
+      echo \"✅ Closing in 3 seconds...\"
+      sleep 3
+      tmux kill-session -t claude-auth
     else
-      DOCKER_CMD=\"docker\"
+      echo \"❌ Authentication failed\"
+      echo \"\"
+      echo \"❌ Closing in 5 seconds...\"
+      sleep 5
+      tmux kill-session -t claude-auth
+      exit 1
     fi
-
-    \$DOCKER_CMD run -it --rm \
-      -v telegram-bot_claude-auth:/home/appuser/.claude \
-      telegram-bot:latest \
-      bash -c \"
-        claude auth login
-        AUTH_CODE=\\\$?
-
-        echo \\\"\\\"
-        echo \\\"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\\"
-
-        if [ \\\$AUTH_CODE -eq 0 ]; then
-          echo \\\"✅ Authentication successful!\\\"
-          echo \\\"\\\"
-          claude auth status
-          echo \\\"\\\"
-          echo \\\"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\\"
-          echo \\\"\\\"
-          echo \\\"✅ Authentication complete! Closing in 3 seconds...\\\"
-          echo \\\"Installation will continue automatically.\\\"
-          sleep 3
-          exit 0
-        else
-          echo \\\"❌ Authentication failed\\\"
-          echo \\\"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\\"
-          echo \\\"\\\"
-          echo \\\"❌ Closing in 5 seconds...\\\"
-          sleep 5
-          exit 1
-        fi
-      \"
-
-    exit \$?
-  '" || AUTH_RESULT=$?
+  '" C-m \; \
+  attach-session -t claude-auth || AUTH_RESULT=$?
 
 # Check authentication result
 if [ $AUTH_RESULT -ne 0 ]; then
